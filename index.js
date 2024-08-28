@@ -1,5 +1,6 @@
 const express=require('express')
 const bcrypt=require('bcryptjs')
+const session=require('express-session')
 
 const db =require('./config/db')
 
@@ -9,8 +10,15 @@ app.use(express.urlencoded({extended:false}))
 app.use(express.static('public'))
 app.set('view engine','ejs')
 
+app.use(session({
+    secret:'buenos dias',
+    resave:false,
+    saveUninitialized:false
+
+}))
+
 //ruta pagina de inicio
-app.get('/',(req,res)=>{
+app.get('/',  (req,res)=>{
     res.render('login')
 })
 // app.get('/*',(req,res)=>{
@@ -24,7 +32,16 @@ app.get('/register',(req,res)=>{
 })
 
 app.get('/dashboard',(req,res)=>{
-    res.render('dashboard')
+if(req.session.loggedin){
+    res.render('dashboard',{nombreUsuario:req.session.username})
+}else{
+
+    res.send('Por favor , inicie sesion para ver esta pagina')
+}
+
+
+
+
 })
 
 
@@ -42,21 +59,34 @@ db.query('INSERT INTO users SET ?',{username,email,password},(error,result)=>{
 })
 })
 
+//middleware
 
-
-app.post("/login",(req,res)=>{
+app.post("/login", (req,res)=>{
    const  {email,password}=req.body
 
    db.query('SELECT * FROM users WHERE email= ?',[email],async(error,result)=>{
     console.log(result)
-    if(result.length === 0 ||  await bcrypt.compare(password,result.password))
+    if(result.length === 0 ||  !(await bcrypt.compare(password,result[0].password))){
         console.log('email y contraseña incorrecta')
-    if(error) throw error;
-    res.redirect('/dashboard')
+    }else{
+        req.session.loggedin=true
+        req.session.username=result[0].username
+        console.log( req.session.loggedin,req.session.username)
+
+        res.redirect('/dashboard')
+    }
+    // if(error) throw error;
+    // res.redirect('/dashboard')
 
    })
 
 
+})
+
+
+app.get('/logout',(req,res)=>{
+    req.session.destroy()
+    res.redirect('/')
 })
 
 app.listen(3800,()=>{
